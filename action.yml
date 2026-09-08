@@ -1,0 +1,52 @@
+name: Contribution Mirror
+description: Mirrors the active days of another GitHub account into this repository as dated commits. Only dates are stored.
+branding:
+  icon: activity
+  color: green
+
+inputs:
+  source-user:
+    description: GitHub username whose contribution graph is mirrored. That account must have "Include private contributions on my profile" enabled.
+    required: true
+  author-name:
+    description: Author name for the mirrored commits.
+    required: true
+  author-email:
+    description: Author email for the mirrored commits. It must be an email verified on the account that owns this repository, or the commits will not count toward its graph.
+    required: true
+  lookback-days:
+    description: How many days before today to inspect, inclusive of today. Values above 365 are fetched in calendar-year chunks.
+    required: false
+    default: "3"
+  log-file:
+    description: Path of the file that records mirrored dates, one per line.
+    required: false
+    default: "log.md"
+  timezone:
+    description: IANA timezone name used only for the commit timestamp, which is set to noon of the mirrored day.
+    required: false
+    default: "UTC"
+
+outputs:
+  mirrored-days:
+    description: Number of days mirrored in this run.
+    value: ${{ steps.mirror.outputs.mirrored-days }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v7
+      with:
+        python-version: "3.12"
+    - run: pip install requests
+      shell: bash
+    - id: mirror
+      run: python ${{ github.action_path }}/mirror.py
+      shell: bash
+      env:
+        SOURCE_USER: ${{ inputs.source-user }}
+        AUTHOR_NAME: ${{ inputs.author-name }}
+        AUTHOR_EMAIL: ${{ inputs.author-email }}
+        LOOKBACK_DAYS: ${{ inputs.lookback-days }}
+        LOG_FILE: ${{ inputs.log-file }}
+        TIMEZONE: ${{ inputs.timezone }}
