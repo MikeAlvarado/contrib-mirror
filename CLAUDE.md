@@ -17,3 +17,12 @@ contribution.
 - Never push. The Action creates commits; the calling workflow pushes.
 - Standard library plus `requests` only. Python 3.12.
 - No em dashes anywhere. No inline comments in commands or YAML.
+
+## Workflow
+
+- Run `python3.12 -m unittest discover -s tests` before committing. Tests
+  never touch the network; the fixture in `tests/fixtures` mirrors the real
+  markup of the contributions fragment.
+- Behavior changes need a test, a README update, and a CHANGELOG entry.
+- Releases are annotated tags `vX.Y.Z`; the `v1` branch moves forward with a
+  fast-forward push. No GitHub releases are created unless asked.
