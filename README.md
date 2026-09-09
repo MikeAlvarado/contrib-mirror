@@ -10,7 +10,7 @@ Contribution Mirror is a composite GitHub Action that mirrors the daily activity
 
 ## Usage
 
-Create `.github/workflows/mirror.yml` in the destination repository. Set the repository variables `SOURCE_USER` and `AUTHOR_NAME`, and the repository secret `AUTHOR_EMAIL`. Replace `OWNER` with the account that hosts this Action.
+Create `.github/workflows/mirror.yml` in the destination repository. Set the repository variables `SOURCE_USER` and `AUTHOR_NAME`, and the repository secret `AUTHOR_EMAIL`.
 
 ```yaml
 name: Contribution mirror
@@ -35,7 +35,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: OWNER/contrib-mirror@v1
+      - uses: MikeAlvarado/contrib-mirror@v1
         with:
           source-user: ${{ vars.SOURCE_USER }}
           author-name: ${{ vars.AUTHOR_NAME }}
