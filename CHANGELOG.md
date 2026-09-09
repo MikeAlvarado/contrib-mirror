@@ -4,9 +4,11 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-09-09
+
 ### Added
 
-- Unit tests, a CI workflow with a weekly smoke run against live GitHub markup, and contributor documentation.
+- Unit tests, a CI workflow with a weekly smoke run against live GitHub markup, and contributor documentation. README rewritten as a guide for any account. No change in behavior.
 
 ## [1.1.0] - 2026-09-09
 
@@ -25,6 +27,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Initial release. One commit per active day, dates only, fail loud, never push.
 
-[Unreleased]: https://github.com/MikeAlvarado/contrib-mirror/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/MikeAlvarado/contrib-mirror/compare/v1.1.1...HEAD
+[1.1.1]: https://github.com/MikeAlvarado/contrib-mirror/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/MikeAlvarado/contrib-mirror/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/MikeAlvarado/contrib-mirror/releases/tag/v1.0.0
