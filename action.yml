@@ -1,5 +1,5 @@
 name: Contribution Mirror
-description: Mirrors the contributions of another GitHub account into this repository as dated commits, one per contribution. Only dates are stored.
+description: Mirrors another GitHub account's contributions onto your graph as dated commits, one per contribution. Dates only.
 branding:
   icon: activity
   color: green
