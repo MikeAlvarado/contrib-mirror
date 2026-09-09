@@ -56,7 +56,7 @@ jobs:
       - run: git push
 ```
 
-With `lookback-days` set to `365` the first run backfills the past year and every later run catches up on anything missed, for the cost of the same single request. Contributions already in the log file are never mirrored twice. A working example is at [MikeAlvarado/contrib-mirror-template](https://github.com/MikeAlvarado/contrib-mirror-template).
+With `lookback-days` set to `365` the first run backfills the past year and every later run catches up on anything missed, for the cost of the same single request. Contributions already in the log file are never mirrored twice. A working example is at [MikeAlvarado/contrib-mirror-BuildPeer](https://github.com/MikeAlvarado/contrib-mirror-BuildPeer).
 
 ## Inputs and outputs
 
