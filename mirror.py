@@ -1,11 +1,15 @@
-"""Mirror active days from a GitHub contribution graph into dated commits.
+"""Mirror a GitHub contribution graph into dated commits, one per contribution.
 
 Only dates are stored. Nothing else from the source account is read into
-the repository: no repository names, no commit messages, no counts.
+the repository: no repository names, no commit messages, no activity details.
+A day with three contributions on the source account gets three commits and
+three identical lines in the log file. That repetition is the only way the
+number of contributions is represented.
 
 The script never pushes. The calling workflow is responsible for that.
 """
 
+import collections
 import datetime as dt
 import os
 import re
@@ -20,18 +24,24 @@ USER_AGENT = "contrib-mirror"
 REQUEST_TIMEOUT = 30
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
-CELL_RE = re.compile(
-    r"<[^<>]*?(?:"
-    r'data-date="(?P<date_a>\d{4}-\d{2}-\d{2})"[^<>]*?data-level="(?P<level_a>\d+)"'
-    r"|"
-    r'data-level="(?P<level_b>\d+)"[^<>]*?data-date="(?P<date_b>\d{4}-\d{2}-\d{2})"'
-    r")[^<>]*>"
+CELL_TAG_RE = re.compile(r'<[^<>]*\sdata-date="\d{4}-\d{2}-\d{2}"[^<>]*>')
+DATE_ATTR_RE = re.compile(r'\sdata-date="(\d{4}-\d{2}-\d{2})"')
+ID_ATTR_RE = re.compile(r'\sid="([^"]+)"')
+TOOLTIP_RE = re.compile(
+    r'<tool-tip\b[^<>]*\sfor="([^"]+)"[^<>]*>(.*?)</tool-tip>', re.DOTALL
 )
+COUNT_RE = re.compile(r"^\s*(No|\d[\d,]*)\s+contributions?\b", re.IGNORECASE)
 
 
 def fail(message):
     print(f"contrib-mirror: {message}", file=sys.stderr)
     sys.exit(1)
+
+
+def plural(count, noun):
+    if count == 1:
+        return f"1 {noun}"
+    return f"{count} {noun}s"
 
 
 def read_config():
@@ -70,16 +80,37 @@ def read_config():
 
 
 def parse_cells(html):
-    """Return a dict of date -> level for every cell found in the fragment."""
+    """Return (cells, unmatched).
+
+    cells maps date -> contribution count for every day cell whose tooltip
+    was found. unmatched is the number of day cells without a readable count.
+    """
+    counts_by_id = {}
+    for match in TOOLTIP_RE.finditer(html):
+        count_match = COUNT_RE.match(match.group(2))
+        if not count_match:
+            continue
+        raw = count_match.group(1)
+        if raw.lower() == "no":
+            counts_by_id[match.group(1)] = 0
+        else:
+            counts_by_id[match.group(1)] = int(raw.replace(",", ""))
+
     cells = {}
-    for match in CELL_RE.finditer(html):
-        date_text = match.group("date_a") or match.group("date_b")
-        level_text = match.group("level_a") or match.group("level_b")
+    unmatched = 0
+    for tag_match in CELL_TAG_RE.finditer(html):
+        tag = tag_match.group(0)
+        date_match = DATE_ATTR_RE.search(tag)
+        id_match = ID_ATTR_RE.search(tag)
         try:
-            cells[dt.date.fromisoformat(date_text)] = int(level_text)
+            day = dt.date.fromisoformat(date_match.group(1))
         except ValueError:
             continue
-    return cells
+        if id_match is None or id_match.group(1) not in counts_by_id:
+            unmatched += 1
+            continue
+        cells[day] = counts_by_id[id_match.group(1)]
+    return cells, unmatched
 
 
 def fetch_cells(user, start=None, end=None):
@@ -104,7 +135,13 @@ def fetch_cells(user, start=None, end=None):
             "enterprise SSO, or GitHub changed the endpoint."
         )
 
-    cells = parse_cells(response.text)
+    cells, unmatched = parse_cells(response.text)
+    if unmatched:
+        fail(
+            f"GET {response.url}: {plural(unmatched, 'day cell')} without a "
+            "readable contribution count. GitHub may have changed the tooltip "
+            "markup."
+        )
     if not cells:
         fail(
             f"GET {response.url} returned HTTP 200 but no contribution cells "
@@ -125,18 +162,19 @@ def year_chunks(start, end):
     return chunks
 
 
-def active_days(user, start, end, lookback_days):
+def contribution_counts(user, start, end, lookback_days):
     cells = {}
     if lookback_days > 365:
         for chunk_start, chunk_end in year_chunks(start, end):
             cells.update(fetch_cells(user, chunk_start, chunk_end))
     else:
         cells.update(fetch_cells(user))
-    return {day for day, level in cells.items() if level > 0}
+    return {day: count for day, count in cells.items() if count > 0}
 
 
 def read_logged(log_file):
-    logged = set()
+    """Return a Counter of date -> how many times it appears in the log."""
+    logged = collections.Counter()
     if not os.path.exists(log_file):
         return logged
     with open(log_file, encoding="utf-8") as handle:
@@ -144,7 +182,7 @@ def read_logged(log_file):
             text = line.strip()
             if DATE_RE.match(text):
                 try:
-                    logged.add(dt.date.fromisoformat(text))
+                    logged[dt.date.fromisoformat(text)] += 1
                 except ValueError:
                     continue
     return logged
@@ -172,9 +210,15 @@ def run_git(args, extra_env=None):
         fail(f"git {' '.join(args)} failed: {exc}")
 
 
-def commit_day(config, day):
-    stamp = dt.datetime(day.year, day.month, day.day, 12, 0, 0, tzinfo=config["tz"])
-    stamp_text = stamp.isoformat()
+def commit_contribution(config, day, ordinal):
+    """Create one commit for the given day.
+
+    ordinal is the zero-based position of this contribution within the day.
+    The timestamp is noon of that day plus ordinal seconds, so commits for
+    the same day stay in order and all fall on the same calendar day.
+    """
+    noon = dt.datetime(day.year, day.month, day.day, 12, 0, 0, tzinfo=config["tz"])
+    stamp_text = (noon + dt.timedelta(seconds=ordinal)).isoformat()
     append_date(config["log_file"], day)
     run_git(["add", "--", config["log_file"]])
     run_git(
@@ -191,12 +235,13 @@ def commit_day(config, day):
     )
 
 
-def write_output(count):
+def write_output(days, contributions):
     path = os.environ.get("GITHUB_OUTPUT")
     if not path:
         return
     with open(path, "a", encoding="utf-8") as handle:
-        handle.write(f"mirrored-days={count}\n")
+        handle.write(f"mirrored-days={days}\n")
+        handle.write(f"mirrored-contributions={contributions}\n")
 
 
 def main():
@@ -204,21 +249,33 @@ def main():
     today = dt.datetime.now(config["tz"]).date()
     start = today - dt.timedelta(days=config["lookback_days"])
 
-    active = active_days(config["source_user"], start, today, config["lookback_days"])
+    counts = contribution_counts(
+        config["source_user"], start, today, config["lookback_days"]
+    )
     logged = read_logged(config["log_file"])
-    missing = sorted(day for day in active if start <= day <= today and day not in logged)
 
-    for day in missing:
-        commit_day(config, day)
+    days = 0
+    contributions = 0
+    for day in sorted(counts):
+        if not start <= day <= today:
+            continue
+        have = logged[day]
+        want = counts[day]
+        if have >= want:
+            continue
+        for ordinal in range(have, want):
+            commit_contribution(config, day, ordinal)
+            contributions += 1
+        days += 1
 
-    count = len(missing)
-    if count == 0:
+    if contributions == 0:
         print("contrib-mirror: nothing new")
-    elif count == 1:
-        print("contrib-mirror: mirrored 1 day")
     else:
-        print(f"contrib-mirror: mirrored {count} days")
-    write_output(count)
+        print(
+            f"contrib-mirror: mirrored {plural(contributions, 'contribution')} "
+            f"across {plural(days, 'day')}"
+        )
+    write_output(days, contributions)
 
 
 if __name__ == "__main__":

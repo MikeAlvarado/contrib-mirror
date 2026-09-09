@@ -1,5 +1,5 @@
 name: Contribution Mirror
-description: Mirrors the active days of another GitHub account into this repository as dated commits. Only dates are stored.
+description: Mirrors the contributions of another GitHub account into this repository as dated commits, one per contribution. Only dates are stored.
 branding:
   icon: activity
   color: green
@@ -19,18 +19,21 @@ inputs:
     required: false
     default: "3"
   log-file:
-    description: Path of the file that records mirrored dates, one per line.
+    description: Path of the file that records mirrored contributions, one date per line.
     required: false
     default: "log.md"
   timezone:
-    description: IANA timezone name used only for the commit timestamp, which is set to noon of the mirrored day.
+    description: IANA timezone name used only for the commit timestamp, which is set to noon of the mirrored day plus one second per further contribution on that day.
     required: false
     default: "UTC"
 
 outputs:
   mirrored-days:
-    description: Number of days mirrored in this run.
+    description: Number of days that received new commits in this run.
     value: ${{ steps.mirror.outputs.mirrored-days }}
+  mirrored-contributions:
+    description: Number of commits created in this run.
+    value: ${{ steps.mirror.outputs.mirrored-contributions }}
 
 runs:
   using: composite
